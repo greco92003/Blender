@@ -9,6 +9,13 @@ import math
 from common import mm
 
 
+def _look_at(cam_obj, target):
+    """Point a camera object's -Z axis at `target` (world space), +Y up - robust replacement
+    for hand-picked Euler guesses, which were leaving Front/Back/Perspective mis-framed."""
+    direction = target - cam_obj.location
+    cam_obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+
+
 def build_cameras(cameras_collection):
     """Create 5 orthographic-friendly product cameras framing the whole slide.
 
@@ -35,33 +42,31 @@ def build_cameras(cameras_collection):
     cameras_collection.objects.link(cam_obj)
     cameras["Cam_Top"] = cam_obj
 
-    # --- Cam_Front: perspective view of toe end ---
+    target = Vector((mm(0.0), product_center_y, mm(22.0)))
+
+    # --- Cam_Front: straight-on view from the toe end, looking back along -Y ---
     cam_data = bpy.data.cameras.new("Cam_Front")
     cam_data.type = 'PERSP'
-    cam_data.lens = 50.0  # 50mm lens
-    cam_data.clip_start = mm(1.0)
+    cam_data.lens = 45.0
+    cam_data.clip_start = mm(0.5)
     cam_data.clip_end = mm(10000.0)
 
     cam_obj = bpy.data.objects.new("Cam_Front", cam_data)
-    # Position in front of toe (Y > 290mm), at product height
-    cam_obj.location = (mm(0.0), mm(310.0), mm(35.0))
-    # Looking back along -Y toward product
-    cam_obj.rotation_euler = Euler((math.radians(0.0), 0.0, math.radians(0.0)), 'XYZ')
+    cam_obj.location = Vector((mm(0.0), mm(430.0), mm(95.0)))
+    _look_at(cam_obj, target)
     cameras_collection.objects.link(cam_obj)
     cameras["Cam_Front"] = cam_obj
 
-    # --- Cam_Back: perspective view of heel end ---
+    # --- Cam_Back: straight-on view from the heel end, looking forward along +Y ---
     cam_data = bpy.data.cameras.new("Cam_Back")
     cam_data.type = 'PERSP'
-    cam_data.lens = 50.0  # 50mm lens
-    cam_data.clip_start = mm(1.0)
+    cam_data.lens = 45.0
+    cam_data.clip_start = mm(0.5)
     cam_data.clip_end = mm(10000.0)
 
     cam_obj = bpy.data.objects.new("Cam_Back", cam_data)
-    # Position behind heel (Y < 0), at product height, looking forward
-    cam_obj.location = (mm(0.0), mm(-30.0), mm(35.0))
-    # Looking forward along +Y toward product (180 degree yaw)
-    cam_obj.rotation_euler = Euler((math.radians(0.0), 0.0, math.radians(180.0)), 'XYZ')
+    cam_obj.location = Vector((mm(0.0), mm(-285.0), mm(95.0)))
+    _look_at(cam_obj, target)
     cameras_collection.objects.link(cam_obj)
     cameras["Cam_Back"] = cam_obj
 
@@ -81,19 +86,17 @@ def build_cameras(cameras_collection):
     cameras_collection.objects.link(cam_obj)
     cameras["Cam_Side"] = cam_obj
 
-    # --- Cam_Perspective: 3/4 hero shot ---
+    # --- Cam_Perspective: 3/4 hero shot elevated ---
     cam_data = bpy.data.cameras.new("Cam_Perspective")
     cam_data.type = 'PERSP'
-    cam_data.lens = 55.0  # Slightly wider than 50mm for nice framing
-    cam_data.clip_start = mm(1.0)
+    cam_data.lens = 50.0  # Moderate focal length for 3/4 hero view
+    cam_data.clip_start = mm(0.5)
     cam_data.clip_end = mm(10000.0)
 
     cam_obj = bpy.data.objects.new("Cam_Perspective", cam_data)
-    # Elevated, offset to front-left corner (front-side = high Y, -X)
-    # Looking down at ~35 degree angle
-    cam_obj.location = (mm(-120.0), mm(220.0), mm(180.0))
-    # Rotation: looking down-ish and slightly back
-    cam_obj.rotation_euler = Euler((math.radians(-35.0), 0.0, math.radians(-25.0)), 'XYZ')
+    # Elevated 3/4 hero angle, offset toward the toe/lateral corner.
+    cam_obj.location = Vector((mm(220.0), mm(340.0), mm(180.0)))
+    _look_at(cam_obj, Vector((mm(0.0), product_center_y, mm(20.0))))
     cameras_collection.objects.link(cam_obj)
     cameras["Cam_Perspective"] = cam_obj
 
@@ -119,43 +122,62 @@ def build_lighting(lights_collection):
     product_center_y = mm(145.0)
     product_center_z = mm(29.0)
 
+    target = Vector((mm(0.0), product_center_y, product_center_z))
+
     # --- Key light: main overhead-front light ---
-    # Using physically realistic power: 2W for close-in product key light at ~250mm distance
     light_data = bpy.data.lights.new("Light_Key", 'AREA')
-    light_data.energy = 2.0  # Watts: physically realistic for close-in product lighting
+    light_data.energy = 0.6
     light_data.size = mm(300.0)  # Large soft area light for diffuse illumination
 
     light_obj = bpy.data.objects.new("Light_Key", light_data)
-    # Positioned above-front of product
-    light_obj.location = (mm(100.0), mm(180.0), mm(250.0))
-    # Angled down toward product center
-    light_obj.rotation_euler = Euler((math.radians(-45.0), math.radians(-30.0), 0.0), 'XYZ')
+    light_obj.location = Vector((mm(100.0), mm(180.0), mm(250.0)))
+    _look_at(light_obj, target)
     lights_collection.objects.link(light_obj)
     lights["Light_Key"] = light_obj
 
     # --- Fill light: opposite side, softer ---
     light_data = bpy.data.lights.new("Light_Fill", 'AREA')
-    light_data.energy = 1.0  # 1W fill light for balance, half the key light intensity
+    light_data.energy = 0.3
     light_data.size = mm(400.0)  # Larger area for soft fill
 
     light_obj = bpy.data.objects.new("Light_Fill", light_data)
-    # Positioned to the opposite side (+X) and slightly back
-    light_obj.location = (mm(250.0), mm(100.0), mm(150.0))
-    light_obj.rotation_euler = Euler((math.radians(-30.0), math.radians(60.0), 0.0), 'XYZ')
+    light_obj.location = Vector((mm(250.0), mm(100.0), mm(150.0)))
+    _look_at(light_obj, target)
     lights_collection.objects.link(light_obj)
     lights["Light_Fill"] = light_obj
 
     # --- Rim light: subtle back highlight ---
     light_data = bpy.data.lights.new("Light_Rim", 'AREA')
-    light_data.energy = 0.8  # 0.8W subtle rim light for back edge definition
+    light_data.energy = 0.2
     light_data.size = mm(200.0)
 
     light_obj = bpy.data.objects.new("Light_Rim", light_data)
-    # Positioned behind-high
-    light_obj.location = (mm(-150.0), mm(-50.0), mm(200.0))
-    light_obj.rotation_euler = Euler((math.radians(-60.0), math.radians(150.0), 0.0), 'XYZ')
+    light_obj.location = Vector((mm(-150.0), mm(-50.0), mm(200.0)))
+    _look_at(light_obj, target)
     lights_collection.objects.link(light_obj)
     lights["Light_Rim"] = light_obj
+
+    # --- White infinity-cove backdrop (floor + curved wall) so the product sits in a clean
+    # catalog sweep instead of floating on the raw world color. ---
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0.0, product_center_y, 0.0))
+    backdrop = bpy.context.active_object
+    backdrop.name = "Backdrop_Plane"
+    backdrop.scale = (mm(1200.0), mm(1200.0), 1.0)
+    mat = bpy.data.materials.get("MAT_Backdrop") or bpy.data.materials.new("MAT_Backdrop")
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = (0.92, 0.92, 0.92, 1.0)
+        bsdf.inputs["Roughness"].default_value = 0.85
+    backdrop.data.materials.append(mat)
+    for c in list(backdrop.users_collection):
+        c.objects.unlink(backdrop)
+    lights_collection.objects.link(backdrop)
+    lights["Backdrop_Plane"] = backdrop
+
+    # --- Predictable sRGB-like exposure so a true-black product and a white backdrop both
+    # read correctly - AgX (Blender 4.0 default) lifts near-black albedos toward mid-gray. ---
+    bpy.context.scene.view_settings.view_transform = 'Standard'
 
     # --- Set world background to white ---
     # Get or create world
