@@ -1,0 +1,5 @@
+blender/output/*
+!blender/output/HudLab_Slide.blend
+!blender/output/previews/
+*.blend1
+__pycache__/
