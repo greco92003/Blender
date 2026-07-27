@@ -26,7 +26,7 @@ def build_cameras(cameras_collection):
 
     # Product center (Y-axis midpoint is 145mm = heel(0) + (290/2))
     product_center_y = mm(145.0)
-    product_center_z = mm(29.0)  # Roughly middle of product height
+    product_center_z = mm(45.0)  # Roughly middle of product height (strap now peaks ~90mm)
 
     # --- Cam_Top: straight down orthographic view ---
     cam_data = bpy.data.cameras.new("Cam_Top")
@@ -79,10 +79,8 @@ def build_cameras(cameras_collection):
     cam_data.clip_end = mm(10000.0)
 
     cam_obj = bpy.data.objects.new("Cam_Side", cam_data)
-    # Position far to the side (+X), looking along -X axis
-    cam_obj.location = (mm(200.0), product_center_y, mm(50.0))
-    # Rotate 90 degrees around Z so we're looking along X axis
-    cam_obj.rotation_euler = Euler((math.radians(0.0), math.radians(90.0), 0.0), 'XYZ')
+    cam_obj.location = Vector((mm(400.0), product_center_y, product_center_z))
+    _look_at(cam_obj, Vector((mm(0.0), product_center_y, product_center_z)))
     cameras_collection.objects.link(cam_obj)
     cameras["Cam_Side"] = cam_obj
 

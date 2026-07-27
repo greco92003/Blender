@@ -5,46 +5,59 @@ Coordinate system (mm, converted to Blender meters via mm()):
   X: lateral, symmetric about 0
   Z: 0 = ground (bottom mostly flat), up positive
 Origin (0,0,0) sits on the ground at the heel-back tip's centerline.
+
+WIDTH_PTS / BOTTOM_PTS / TOP_PTS are measured directly off the Hud Lab reference photos
+(ref_01_top_pair.webp for width, ref_05_side_profile.webp for the thickness/rocker profile)
+via blender/scripts/extract_reference_profiles.py + derive_control_points2.py - not hand-guessed.
+TOP_PTS has a gap over the strap footprint (t~0.457-0.836) since the strap occludes the sole
+surface there in the photo; it's bridged with a smooth spline segment instead of measured data.
 """
 import bmesh
-from common import mm, new_mesh_object, bm_to_mesh, smoothstep, lerp, catmull_rom_profile
+from common import mm, new_mesh_object, bm_to_mesh, catmull_rom_profile
 
 # ---- Parametric dimensions (baseline size ~ EU 42 men's slide) ----
-LENGTH = 290.0          # mm, heel tip to toe tip
-N_LEN = 92               # length subdivisions (rows) -> 93 rows incl. poles
-N_WID = 20                # half-width subdivisions -> 41 columns across full width
-HEEL_THICK = 20.0         # mm sole thickness at heel
-MID_THICK = 17.5          # mm at arch/waist
-FORE_THICK = 18.5         # mm at ball of foot
-TOE_THICK = 15.0          # mm near toe tip (still non-zero, bevel rounds the rest)
-HEEL_LIFT = 2.2           # mm subtle top-surface heel rise ("leve inclinacao do calcanhar")
-TOE_ROCKER = 4.0          # mm the bottom lifts up near the toe tip
-HEEL_ROCKER = 1.8         # mm the bottom lifts up near the heel tip
-BEVEL_WIDTH = 1.6         # mm perimeter edge rounding (not exaggerated)
+LENGTH = 290.0            # mm, heel tip to toe tip
+N_LEN = 92                 # length subdivisions (rows) -> 93 rows incl. poles
+N_WID = 20                  # half-width subdivisions -> 41 columns across full width
+BEVEL_WIDTH = 1.6           # mm perimeter edge rounding (not exaggerated)
 BEVEL_SEGMENTS = 3
 
-# Half-width profile control points: (t along length, half-width mm)
-# Smooth (Catmull-Rom) spline through these -> avoids faceted/kinked outline.
+# Half-width profile: (t along length, half-width mm) - measured from ref_01_top_pair.webp.
 WIDTH_PTS = [
-    (-0.04, 0.0),
-    (0.00, 3.0),
-    (0.015, 11.0),
-    (0.035, 20.0),
-    (0.06, 29.0),
-    (0.10, 36.0),
-    (0.16, 39.0),
-    (0.22, 39.5),
-    (0.30, 39.0),
-    (0.42, 37.0),   # waist / arch narrows in
-    (0.56, 39.5),
-    (0.68, 47.0),
-    (0.78, 51.0),   # ball of foot, widest point
-    (0.87, 47.5),
-    (0.94, 38.0),
-    (0.975, 24.0),
-    (0.99, 11.0),
-    (1.00, 3.0),
-    (1.04, 0.0),
+    (0.0, 2.54), (0.0167, 19.87), (0.0333, 26.33), (0.05, 30.42), (0.0667, 33.69),
+    (0.0833, 36.15), (0.1, 37.78), (0.1167, 39.01), (0.1333, 40.16), (0.15, 41.14),
+    (0.1667, 41.71), (0.1833, 42.28), (0.2, 42.69), (0.2167, 43.1), (0.2333, 43.26),
+    (0.25, 43.59), (0.2667, 43.75), (0.2833, 44.08), (0.3, 44.33), (0.3167, 44.65),
+    (0.3333, 44.98), (0.35, 45.47), (0.3667, 45.8), (0.3833, 46.29), (0.4, 46.78),
+    (0.4167, 47.43), (0.4333, 49.4), (0.45, 51.6), (0.4667, 52.5), (0.4833, 53.24),
+    (0.5, 53.73), (0.5167, 54.96), (0.5333, 55.69), (0.55, 56.1), (0.5667, 56.1),
+    (0.5833, 56.27), (0.6, 56.43), (0.6167, 56.67), (0.6333, 57.0), (0.65, 57.41),
+    (0.6667, 57.82), (0.6833, 58.07), (0.7, 58.31), (0.7167, 58.39), (0.7333, 58.23),
+    (0.75, 57.58), (0.7667, 55.78), (0.7833, 54.63), (0.8, 53.48), (0.8167, 52.18),
+    (0.8333, 51.03), (0.85, 49.72), (0.8667, 48.01), (0.8833, 46.21), (0.9, 44.16),
+    (0.9167, 41.71), (0.9333, 38.68), (0.95, 34.51), (0.9667, 29.69), (0.9833, 21.59),
+    (1.0, 3.6),
+]
+
+# Bottom surface height above ground (mm) - measured; flat (~0-2mm) through the midfoot,
+# lifting at both tips (rounded heel-back and a stronger toe-front rocker).
+BOTTOM_PTS = [
+    (0.0, 8.57), (0.0286, 4.29), (0.0571, 3.06), (0.0857, 2.45), (0.1143, 2.14),
+    (0.1429, 1.84), (0.1714, 1.84), (0.2, 1.53), (0.2286, 1.53), (0.2571, 1.22),
+    (0.2857, 1.22), (0.3143, 0.92), (0.3429, 0.92), (0.3714, 0.92), (0.4, 0.61),
+    (0.4286, 0.61), (0.8357, 0.3), (0.8643, 0.61), (0.8929, 1.53), (0.9214, 2.76),
+    (0.95, 4.59), (0.9786, 7.35), (1.0, 13.78),
+]
+
+# Top (footbed) surface height above ground (mm) - measured on the heel pad (t<0.43) and the
+# toe overhang (t>0.836); the gap in between is the strap footprint (see strap.py), bridged
+# with a smooth spline rather than invented data.
+TOP_PTS = [
+    (0.0, 13.78), (0.0286, 30.32), (0.0571, 31.24), (0.0857, 31.85), (0.1143, 32.46),
+    (0.1429, 33.07), (0.1714, 33.68), (0.2, 34.3), (0.2286, 34.91), (0.2571, 35.83),
+    (0.2857, 36.13), (0.3143, 36.75), (0.3429, 37.05), (0.3714, 37.05), (0.4, 37.36),
+    (0.4286, 37.36), (0.8357, 24.19), (0.8643, 24.19), (0.8929, 24.8), (0.9214, 25.72),
+    (0.95, 26.03), (0.9786, 25.11), (1.0, 16.23),
 ]
 
 
@@ -52,29 +65,16 @@ def half_width(t):
     return max(0.0, catmull_rom_profile(WIDTH_PTS, t))
 
 
-THICK_PTS = [
-    (-0.1, HEEL_THICK),
-    (0.0, HEEL_THICK),
-    (0.30, MID_THICK),
-    (0.62, FORE_THICK),
-    (1.0, TOE_THICK),
-    (1.1, TOE_THICK),
-]
+def bottom_z(t):
+    return max(0.0, catmull_rom_profile(BOTTOM_PTS, t))
+
+
+def top_z(t):
+    return catmull_rom_profile(TOP_PTS, t)
 
 
 def _thickness(t):
-    return catmull_rom_profile(THICK_PTS, t)
-
-
-def bottom_z(t):
-    z = 0.0
-    if t < 0.08:
-        local = 1.0 - smoothstep(t / 0.08)
-        z += HEEL_ROCKER * local
-    if t > 0.82:
-        local = smoothstep((t - 0.82) / 0.18)
-        z += TOE_ROCKER * local
-    return z
+    return top_z(t) - bottom_z(t)
 
 
 def build_sole(collection):
@@ -91,9 +91,7 @@ def build_sole(collection):
         y = t * LENGTH
         hw = half_width(t)
         bz = bottom_z(t)
-        th = _thickness(t)
-        heel_blend = 1.0 - smoothstep(min(t / 0.35, 1.0))
-        tz = bz + th + HEEL_LIFT * heel_blend
+        tz = top_z(t)
 
         v_top = 0.02 + 0.46 * (i / N_LEN)
         v_bot = 0.52 + 0.46 * (i / N_LEN)

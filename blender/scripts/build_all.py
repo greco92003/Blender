@@ -78,6 +78,7 @@ def main():
         n_fixed = common.repair_zero_area_uvs(obj)
         if n_fixed:
             print(f"Repaired {n_fixed} zero-area UV faces on {obj.name} (bevel-introduced)")
+        common.clamp_vertex_weights_and_uvs(obj)
 
     # Origins: Sole pivots at ground level, centered under the product (turntable-friendly).
     sole_mn, sole_mx = bounds_world(sole_obj)

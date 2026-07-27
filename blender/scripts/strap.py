@@ -1,74 +1,85 @@
-"""HL_Strap (gaspea) builder — hollow-shell trapezoidal band with real wall
-thickness, seated on the sole surface, taller on the outer/lateral edge,
-with a clean low-distortion UV unwrap on the front (print) face.
+"""HL_Strap (gaspea) builder — solid trapezoidal band with real wall thickness,
+seated on the sole surface, taller on the outer/lateral edge, with a clean
+low-distortion UV unwrap on the front (print) face.
+
+STRAP_BACK_T / STRAP_FRONT_T and OUTER_PROFILE are measured directly off
+ref_05_side_profile.webp (blender/scripts/extract_reference_profiles.py +
+derive_control_points2.py), not hand-guessed - the strap is far wider/taller
+and asymmetric (steep back face, gradual front face) than an eyeballed curve.
 """
 import bmesh
 import math
 from common import mm, new_mesh_object, bm_to_mesh
 import sole as sole_mod
 
-# ---- Placement along the sole (t = fraction of sole LENGTH from heel) ----
-STRAP_BACK_T = 0.615   # back (heel-facing) edge of the strap footprint
-STRAP_FRONT_T = 0.815  # front (toe-facing) edge of the strap footprint
-WIDTH_INSET = 0.965     # strap spans this fraction of the sole's half-width at that Y
+# ---- Placement along the sole (t = fraction of sole LENGTH from heel) - measured ----
+STRAP_BACK_T = 0.4571    # back (heel-facing) edge of the strap footprint
+STRAP_FRONT_T = 0.8286   # front (toe-facing) edge of the strap footprint
+WIDTH_INSET = 0.965        # strap spans this fraction of the sole's half-width at that Y
 
-WALL_THICKNESS = 5.5    # mm, real geometric wall thickness (not solidify-only)
+WALL_THICKNESS = 6.5      # mm, real geometric wall thickness (not solidify-only)
 OUTER_HEIGHT_SCALE = 1.0    # lateral / outer edge (x = -halfwidth): tallest
 INNER_HEIGHT_SCALE = 0.82   # medial / inner edge (x = +halfwidth): shorter
-N_X = 42                 # columns across the strap width
+N_X = 42                     # columns across the strap width
 CORNER_BEVEL_MM = 2.2
 CORNER_BEVEL_SEGMENTS = 4
 
-# Cross-section loop, local (y_local mm relative to footprint center, z_local mm above sole surface).
-# The strap is SOLID molded rubber (not a hollow shell/handle) - the "inner" profile is the
-# hidden underside, dipping only a few mm below the base plane to seat into the sole and give
-# real thickness, per spec ("nao usar plano com Solidify", "espessura real").
+# Cross-section loop, local (y_local mm relative to footprint center, z_local mm above sole
+# surface at the strap's centerline). The strap is SOLID molded rubber (not a hollow
+# shell/handle) - "inner" is the hidden underside, dipping a few mm below the base plane to
+# seat into the sole and give real thickness, per spec ("nao usar plano com Solidify").
 # Outer (visible, convex) surface: back-bottom -> up over the rounded top -> front-bottom.
+# Measured: short/steep rise on the back (heel) side, long/gradual descent on the front (toe)
+# side - the apex sits noticeably toward the back, not centered.
 OUTER_PROFILE = [
-    (-24.0, 0.0),
-    (-23.2, 9.0),
-    (-20.5, 21.0),
-    (-15.0, 31.0),
-    (-6.0, 37.5),
-    (3.0, 39.5),     # top ridge (flattish plateau, slightly back of center)
-    (11.0, 37.0),
-    (18.0, 28.0),
-    (22.5, 15.0),
-    (24.5, 3.0),
-    (25.0, 0.0),
+    (-58.0, 0.0),
+    (-53.87, 8.27),
+    (-49.72, 16.84),
+    (-43.49, 30.62),
+    (-39.37, 38.89),
+    (-33.13, 51.14),
+    (-28.99, 56.96),
+    (-26.93, 58.18),   # apex - toward the back, not centered
+    (-22.78, 57.88),
+    (-18.63, 56.65),
+    (-12.43, 54.51),
+    (-8.28, 52.67),
+    (-2.07, 50.22),
+    (2.07, 48.38),
+    (8.28, 45.63),
+    (12.43, 43.79),
+    (18.63, 40.73),
+    (22.78, 38.89),
+    (29.01, 35.83),
+    (33.13, 33.99),
+    (39.37, 30.62),
+    (43.51, 28.78),
+    (49.72, 25.42),
+    (53.87, 22.05),
+    (58.0, 0.0),
 ]
-# Inner (hidden underside) surface: front-bottom -> back -> back-bottom. Shallow concave dip.
+_PEAK_IDX = 7
+# Inner (hidden underside) surface: front-bottom -> back -> back-bottom. Shallow concave dip,
+# y-extent rescaled to match the measured (much wider) strap depth above.
 INNER_PROFILE = [
-    (23.0, -1.6),
-    (15.0, -4.8),
-    (5.0, -6.2),
-    (-5.0, -6.2),
-    (-14.0, -4.8),
-    (-21.0, -1.6),
-    (-22.5, -0.3),
+    (53.0, -1.8),
+    (34.5, -5.5),
+    (11.5, -7.1),
+    (-11.5, -7.1),
+    (-32.0, -5.5),
+    (-48.0, -1.8),
+    (-51.5, -0.35),
 ]
 
 LOOP = OUTER_PROFILE + INNER_PROFILE  # closed loop, index 0 = back-bottom-outer
 N_LOOP = len(LOOP)
-# index of the last outer point (front-bottom-outer) -> start of front face arc
-_OUTER_FRONT_IDX = len(OUTER_PROFILE) - 1
-# The "print area" (front, visible, roughly-flat face) is the front half of the
-# outer profile: from the apex (index 4) to the front-bottom (index 9).
-PRINT_OUTER_RANGE = (4, len(OUTER_PROFILE) - 1)
+# The "print area" (front, visible, roughly-flat face) is the front portion of the
+# outer profile: from the apex to just before the front-bottom closure point.
+PRINT_OUTER_RANGE = (_PEAK_IDX, len(OUTER_PROFILE) - 1)
 
 
 def _sole_top_z(t):
-    heel_blend = 1.0 - min(max(1.0 - abs(0), 0), 1)  # unused placeholder
-    th = sole_mod._thickness(t)
-    bz = sole_mod.bottom_z(t)
-    import math as _m
-    hb = 1.0 - _smoothstep(min(t / 0.35, 1.0))
-    return bz + th + sole_mod.HEEL_LIFT * hb
-
-
-def _smoothstep(t):
-    t = max(0.0, min(1.0, t))
-    return t * t * (3 - 2 * t)
+    return sole_mod.top_z(t)
 
 
 def build_strap(collection):

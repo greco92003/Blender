@@ -98,8 +98,8 @@ def _place_on_strap(obj, strap_obj):
     y_center_mm = y_center_t * strap_mod.sole_mod.LENGTH
     base_z_mm = strap_mod._sole_top_z(y_center_t)
 
-    p_upper = strap_mod.OUTER_PROFILE[7]   # (18.0, 28.0) - upper front face point
-    p_lower = strap_mod.OUTER_PROFILE[8]   # (22.5, 15.0) - lower front face point
+    p_upper = strap_mod.OUTER_PROFILE[13]  # mid front face, upper area
+    p_lower = strap_mod.OUTER_PROFILE[19]  # mid front face, lower area
     t = TAG_FRONT_BLEND
     y_local = p_upper[0] + (p_lower[0] - p_upper[0]) * t
     z_local_unscaled = p_upper[1] + (p_lower[1] - p_upper[1]) * t
@@ -109,9 +109,9 @@ def _place_on_strap(obj, strap_obj):
 
     depsgraph = bpy.context.evaluated_depsgraph_get()
     strap_eval = strap_obj.evaluated_get(depsgraph)
-    origin = approx + normal_guess * mm(60.0)
+    origin = approx + normal_guess * mm(100.0)
     direction = -normal_guess
-    ok, hit_loc, hit_normal, _ = strap_eval.ray_cast(origin, direction, distance=mm(120.0))
+    ok, hit_loc, hit_normal, _ = strap_eval.ray_cast(origin, direction, distance=mm(200.0))
 
     if not ok:
         # Fallback: keep the analytic estimate if the ray missed.

@@ -102,6 +102,19 @@ def repair_zero_area_uvs(obj, area_eps=1e-8):
     return bad
 
 
+def clamp_vertex_weights_and_uvs(obj):
+    """Bevel-modifier weight/UV interpolation can leave microscopic negative weights or
+    slightly-out-of-[0,1] UV coordinates (e.g. -0.000005) - harmless but trips strict
+    validation. Clamp them so mesh.validate() and UV-range checks report clean."""
+    for v in obj.data.vertices:
+        for g in v.groups:
+            g.weight = max(0.0, min(1.0, g.weight))
+    for uv_layer in obj.data.uv_layers:
+        for loop_uv in uv_layer.data:
+            loop_uv.uv.x = max(0.0, min(1.0, loop_uv.uv.x))
+            loop_uv.uv.y = max(0.0, min(1.0, loop_uv.uv.y))
+
+
 def surface_ray_cast(obj, approx_world_point, normal_guess, max_dist_mm=120.0):
     """Ray-cast toward an evaluated (post-modifier) object's surface from just outside it,
     so placement follows the true surface rather than a hand-derived tangent-plane guess.
